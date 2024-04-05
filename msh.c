@@ -194,6 +194,19 @@ int main(int argc, char *argv[]) {
                     }
                 } else {
                     // execute in background
+                    getCompleteCommand(argvv, 0); // get first command
+                    int pid = fork();
+                    if (pid == 0) {
+                        setsid(); //detach the child process from the terminal
+                        execvp(argv_execvp[0], argv_execvp); // execute the command
+                        perror("Error in execvp");           // if execvp doesnt work correctly
+                        exit(-1);
+                    } else if (pid < 0) {
+                        perror("Error in fork"); // if fork doesnt work correctly
+                        exit(-1);
+                    } else {
+                        wait(&status); // wait for the child to finish
+                    }
                 }
             }
         }

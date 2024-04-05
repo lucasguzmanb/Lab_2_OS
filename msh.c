@@ -179,34 +179,22 @@ int main(int argc, char *argv[]) {
             if (command_counter > MAX_COMMANDS) {
                 printf("Error: Maximum number of commands is %d \n", MAX_COMMANDS);
             } else {
-                if (!in_background) {
-                    getCompleteCommand(argvv, 0); // get first command
-                    int pid = fork();
-                    if (pid == 0) {
-                        execvp(argv_execvp[0], argv_execvp); // execute the command
-                        perror("Error in execvp");           // if execvp doesnt work correctly
-                        exit(-1);
-                    } else if (pid < 0) {
-                        perror("Error in fork"); // if fork doesnt work correctly
-                        exit(-1);
-                    } else {
-                        wait(&status); // wait for the child to finish
-                    }
-                } else {
-                    // execute in background
-                    getCompleteCommand(argvv, 0); // get first command
-                    int pid = fork();
-                    if (pid == 0) {
+                getCompleteCommand(argvv, 0); // get first command
+                int pid = fork();
+                if (pid == 0) {
+                    if(in_background){
                         setsid(); //detach the child process from the terminal
-                        execvp(argv_execvp[0], argv_execvp); // execute the command
-                        perror("Error in execvp");           // if execvp doesnt work correctly
-                        exit(-1);
-                    } else if (pid < 0) {
-                        perror("Error in fork"); // if fork doesnt work correctly
-                        exit(-1);
-                    } else {
-                        wait(&status); // wait for the child to finish
                     }
+                    execvp(argv_execvp[0], argv_execvp); // execute the command
+                    perror("Error in execvp");           // if execvp doesnt work correctly
+                    exit(-1);
+                } else if (pid < 0) {
+                    perror("Error in fork"); // if fork doesnt work correctly
+                    exit(-1);
+                } else {
+                    wait(&status); // wait for the child to finish
+                }
+                    
                 }
             }
         }

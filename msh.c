@@ -181,11 +181,12 @@ int main(int argc, char *argv[]) {
             } else {
                 getCompleteCommand(argvv, 0); // get first command
                 pid_t pid;
-                int prev_pipe[2] = {-1, -1}; // initialized to -1 because there is no command associated yet
+                
 
                 for (i = 0; i < cmd_count; i++) {
-                    int pipe_fd[2];
-                    if (pipe(pipe_fd) == -1) {
+                    int fd[2];
+                    pipe(fd);
+                    if (pipe(fd) == -1) {
                         perror("Error of the pipe");
                         exit(-1);
                     }
@@ -197,17 +198,10 @@ int main(int argc, char *argv[]) {
                     }
 
                     else if (pid == 0) { // child process
-                        if (prev_pipe[0] != -1) { // if not the first command
-                            close(STDIN_FILENO);
-                            dup2(prev_pipe[0], STDIN_FILENO);
-                            close(prev_pipe[0]);
-                        }
-                    
-                        if (pipe_fd[1] != -1) { // If not the last command
-                            close(STDOUT_FILENO);
-                            dup2(pipe_fd[1], STDOUT_FILENO);
-                            close(pipe_fd[1]);
-                        }
+                        close(STDOUT_FILENO);
+                        dup(fd[STDOUT_FILENO]);
+                        close(fd[STDOUT_FILENO]);
+                        close(fd[STDIN_FILENO]); 
 
                         execvp(argv_execvp[0], argv_execvp); // execute the command
                         perror("Error in execvp");           // if execvp doesnt work correctly
@@ -215,28 +209,16 @@ int main(int argc, char *argv[]) {
                     }
 
                     else { // Parent process
-                        if (prev_pipe[0] != -1) {
-                            close(prev_pipe[0]);
-                        }
-                        if (prev_pipe[1] != -1) {
-                            close(prev_pipe[1]);
-                        }
-                        prev_pipe[0] = pipe_fd[0];
-                        prev_pipe[1] = pipe_fd[1];
+                        close(STDIN_FILENO);
+                        dup(fd[STDIN_FILENO]);
+                        close(fd[STDIN_FILENO]);
+                        close(fd[STDOUT_FILENO]);
                         if (!in_background) {
                             wait(&status); // wait for the child to finish
                         } else {
                             printf("[%d]\n", pid); // print bg process id
                         }
                     }
-                }
-
-                // close pipes in the parent
-                if (prev_pipe[0] != -1) {
-                    close(prev_pipe[0]);
-                }
-                if (prev_pipe[1] != -1) {
-                    close(prev_pipe[1]);
                 }
 
                 // wait for all child processes to finish

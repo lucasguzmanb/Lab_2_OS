@@ -17,6 +17,8 @@
 #include <wait.h>
 
 #define MAX_COMMANDS 8
+#define READ_END 0  // index of reading pipe end
+#define WRITE_END 1 // index of writing pipe end
 
 // files in case of redirection
 char filev[3][64];
@@ -30,6 +32,11 @@ void siginthandler(int param) {
     exit(0);
 }
 
+void sigchldhandler(int signal) {
+    // When SIGCHLD is recieved, clean the status of the child that finished
+    int status;
+    waitpid(-1, &status, WNOHANG);
+}
 /* myhistory */
 
 /* myhistory */
@@ -179,75 +186,123 @@ int main(int argc, char *argv[]) {
             if (command_counter > MAX_COMMANDS) {
                 printf("Error: Maximum number of commands is %d \n", MAX_COMMANDS);
             } else {
+
+                signal(SIGCHLD, sigchldhandler); // signal handler when recieving SIGCHLD
                 pid_t pid;
-                switch (command_counter) {
-                    case 1:
-                        getCompleteCommand(argvv, 0); // get command
-                        pid = fork();
+
+                if (command_counter == 1) { // simple command
+
+                    pid = fork();
+
+                    if (pid == -1) {
+                        perror("Error in fork"); // if fork doesn't work correctly
+                        exit(EXIT_FAILURE);
+                    }
+
+                    else if (pid == 0) {                     // child process
+                        getCompleteCommand(argvv, 0);        // get command
+                        execvp(argv_execvp[0], argv_execvp); // execute the command
+                        perror("Error in execvp");           // if execvp doesnt work correctly
+                        exit(EXIT_FAILURE);
+                    }
+
+                    else { // Parent process
+                        if (!in_background) {
+                            waitpid(pid, &status, 0); // if command is in foreground, wait for the child to finish, blocking shell
+                        } else {
+                            printf("[%d]\n", pid); // print bg process id, and not wait for child to finish (will "wait" for SIGCHLD, but not blocking the shell)
+                        }
+                    }
+
+                } else if (command_counter > 1) { // more than 1 command, we need pipes (ahora, para 2 comandos, TODO: meterlo en un FOR para mas comandos)
+
+                    int fd[2]; // create pipe
+
+                    if (pipe(fd) == -1) {
+                        perror("Error in pipe");
+                        exit(EXIT_FAILURE);
+                    }
+
+                    pid = fork(); // first child: first process
+
+                    if (pid == -1) {
+                        perror("Error in fork"); // if fork doesnt work correctly
+                        exit(EXIT_FAILURE);
+                    }
+
+                    else if (pid == 0) { // child process (has inherited both fds of the pipe)
+
+                        close(fd[READ_END]);                // non needed end of pipe
+                        dup2(fd[WRITE_END], STDOUT_FILENO); // to write into the pipe
+                        close(fd[WRITE_END]);
+                        getCompleteCommand(argvv, 0);        // get 1st command
+                        execvp(argv_execvp[0], argv_execvp); // execute command
+                        perror("Error in execvp");           // if execvp doesnt work correctly
+                        exit(EXIT_FAILURE);
+
+                    }
+
+                    else { // parent
+
+                        pid = fork(); // second child: second process
+
                         if (pid == -1) {
                             perror("Error in fork"); // if fork doesnt work correctly
-                            exit(-1);
+                            exit(EXIT_FAILURE);
                         }
 
-                        else if (pid == 0) {                     // child process
-                            execvp(argv_execvp[0], argv_execvp); // execute the command
+                        else if (pid == 0) { // child process (has inherited both fds of the pipe)
+
+                            close(fd[WRITE_END]);             // non needed end of pipe
+                            dup2(fd[READ_END], STDIN_FILENO); // to read from the pipe
+                            close(fd[READ_END]);
+                            getCompleteCommand(argvv, 1);        // get 2nd command
+                            execvp(argv_execvp[0], argv_execvp); // execute command
                             perror("Error in execvp");           // if execvp doesnt work correctly
-                            exit(-1);
+                            exit(EXIT_FAILURE);
                         }
 
-                        else { // Parent process
-                            if (!in_background) {
-                                wait(&status); // wait for the child to finish
-                            } else {
-                                printf("[%d]\n", pid); // print bg process id
-                            }
-                        }
-                        break;
-                    case 2:
-                        getCompleteCommand(argvv, 0); // get command
-                        int fd[2];
-                        if (pipe(fd) == -1) {
-                            perror("Error of the pipe");
-                            exit(-1);
-                        }
+                        else {
 
-                        pid = fork();
-                        if (pid == -1) {
-                            perror("Error in fork"); // if fork doesnt work correctly
-                            exit(-1);
+                            // close both pipe ends in the parent
+                            close(fd[READ_END]);
+                            close(fd[WRITE_END]);
+                            wait(&status); // wait for child to finish
                         }
-
-                        else if (pid == 0) { // child process
-                            close(STDOUT_FILENO);
-                            dup(fd[1]);
-                            close(fd[0]);
-                            close(fd[1]);
-                            execvp(argv_execvp[0], argv_execvp); // execute the command
-                            perror("Error in execvp");           // if execvp doesnt work correctly
-                            exit(-1);
-                        }
-
-                        else {                            // Parent process
-                            getCompleteCommand(argvv, 1); // get command
-                            close(STDIN_FILENO);
-                            dup(fd[0]);
-                            close(fd[0]);
-                            close(fd[1]);
-                            if (!in_background) {
-                                wait(&status); // wait for the child to finish
-                            } else {
-                                printf("[%d]\n", pid); // print bg process id
-                            }
-                            execvp(argv_execvp[0], argv_execvp); // execute the command
-                        }
-                        break;
-
-                    default:
-                        break;
+                    }
                 }
+                /*
+                    pid = fork();
+                    if (pid == -1) {
+                        perror("Error in fork"); // if fork doesnt work correctly
+                        exit(-1);
+                    }
+                    else if (pid == 0) { // child process
+                        close(STDOUT_FILENO);
+                        dup(fd[1]);
+                        close(fd[0]);
+                        close(fd[1]);
+                        execvp(argv_execvp[0], argv_execvp); // execute the command
+                        perror("Error in execvp");           // if execvp doesnt work correctly
+                        exit(-1);
+                    }
 
+                    else {                            // Parent process
+                        getCompleteCommand(argvv, 1); // get command
+                        close(STDIN_FILENO);
+                        dup(fd[0]);
+                        close(fd[0]);
+                        close(fd[1]);
+                        if (!in_background) {
+                            wait(&status); // wait for the child to finish
+                        } else {
+                            printf("[%d]\n", pid); // print bg process id
+                        }
+                        execvp(argv_execvp[0], argv_execvp); // execute the command
+                    }
+                }
                 // wait for all child processes to finish
-                /* for (int i = 0; i < command_counter; i++) {
+                for (int i = 0; i < command_counter; i++) {
                     wait(&status);
                 } */
             }

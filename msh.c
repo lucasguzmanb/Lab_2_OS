@@ -199,11 +199,50 @@ int main(int argc, char *argv[]) {
                         exit(EXIT_FAILURE);
                     }
 
-                    else if (pid == 0) {                     // child process
-                        getCompleteCommand(argvv, 0);        // get command
-                        execvp(argv_execvp[0], argv_execvp); // execute the command
-                        perror("Error in execvp");           // if execvp doesnt work correctly
-                        exit(EXIT_FAILURE);
+                    else if (pid == 0) { // child process
+
+                        if (strcmp(argvv[0][0], "mycalc") == 0) {
+
+                            printf("this is mycalc\n");
+
+                        } else if (strcmp(argvv[0][0], "myhistory") == 0) {
+
+                            printf("this is myhistory\n");
+
+                        } else {
+                            int fid;
+                            if (strcmp(filev[0], "0") != 0) { // redirection of input
+                                fid = open(filev[0], O_RDONLY);
+                                if (fid < 0) {
+                                    perror("Error in open");
+                                    exit(-1);
+                                }
+                                dup2(fid, STDIN_FILENO);
+                                close(fid);
+                            }
+                            if (strcmp(filev[1], "0") != 0) { // redirection of output
+                                fid = open(filev[1], O_CREAT | O_WRONLY, 0666);
+                                if (fid < 0) {
+                                    perror("Error in open");
+                                    exit(-1);
+                                }
+                                dup2(fid, STDOUT_FILENO);
+                                close(fid);
+                            }
+                            if (strcmp(filev[2], "0") != 0) { // redirection of error
+                                fid = open(filev[2], O_CREAT | O_WRONLY, 0666);
+                                if (fid < 0) {
+                                    perror("Error in open");
+                                    exit(-1);
+                                }
+                                dup2(fid, STDERR_FILENO);
+                                close(fid);
+                            }
+                            getCompleteCommand(argvv, 0);        // get command
+                            execvp(argv_execvp[0], argv_execvp); // execute the command
+                            perror("Error in execvp");           // if execvp doesnt work correctly
+                            exit(EXIT_FAILURE);
+                        }
                     }
 
                     else { // Parent process
@@ -214,13 +253,14 @@ int main(int argc, char *argv[]) {
                         }
                     }
 
-                } else if (command_counter > 1) { // more than 1 command, we need pipes (ahora, para 2 comandos, TODO: meterlo en un FOR para mas comandos)
+                } else if (command_counter > 1) { // more than 1 command, we need pipes
 
-                    int fd[command_counter - 1][2]; // to store each pipe's fd
+                    signal(SIGCHLD, sigchldhandler); // signal handler when recieving SIGCHLD
+                    int fd[command_counter - 1][2];  // to store each pipe's fd
 
                     for (int i = 0; i < command_counter; i++) {
 
-                        if (i != command_counter - 1) {
+                        if (i != command_counter - 1) { // if not the last command
                             if (pipe(fd[i]) == -1) {
                                 perror("Error in pipe");
                                 exit(EXIT_FAILURE);
@@ -235,8 +275,29 @@ int main(int argc, char *argv[]) {
                         }
 
                         else if (pid == 0) { // child process (has inherited both fds of the pipe)
-                            if (i == 0) {    // first command of sequence
 
+                            int fid;
+                            if (strcmp(filev[2], "0") != 0) { // redirection of error
+                                fid = open(filev[2], O_CREAT | O_WRONLY, 0666);
+                                if (fid < 0) {
+                                    perror("Error in open");
+                                    exit(-1);
+                                }
+                                dup2(fid, STDERR_FILENO);
+                                close(fid);
+                            }
+
+                            if (i == 0) { // first command of sequence
+
+                                if (strcmp(filev[0], "0") != 0) { // redirection of input
+                                    fid = open(filev[0], O_RDONLY);
+                                    if (fid < 0) {
+                                        perror("Error in open");
+                                        exit(-1);
+                                    }
+                                    dup2(fid, STDIN_FILENO);
+                                    close(fid);
+                                }
                                 close(fd[i][READ_END]);                // non needed end of pipe
                                 dup2(fd[i][WRITE_END], STDOUT_FILENO); // to write into the pipe
                                 close(fd[i][WRITE_END]);
@@ -247,8 +308,17 @@ int main(int argc, char *argv[]) {
                                 dup2(fd[i - 1][READ_END], STDIN_FILENO); // to read from the pipe
                                 close(fd[i - 1][READ_END]);
 
-                            } else {
+                                if (strcmp(filev[1], "0") != 0) { // redirection of output
+                                    fid = open(filev[1], O_CREAT | O_WRONLY, 0666);
+                                    if (fid < 0) {
+                                        perror("Error in open");
+                                        exit(-1);
+                                    }
+                                    dup2(fid, STDOUT_FILENO);
+                                    close(fid);
+                                }
 
+                            } else {                                     // "middle" command
                                 dup2(fd[i - 1][READ_END], STDIN_FILENO); // read from previous pipe
                                 dup2(fd[i][WRITE_END], STDOUT_FILENO);   // write on next pipe
                             }
@@ -269,7 +339,12 @@ int main(int argc, char *argv[]) {
                             if (i != command_counter - 1) {
                                 close(fd[i][WRITE_END]);
                             }
-                            wait(&status);
+
+                            if (!in_background) {
+                                wait(&status); // if command is in foreground, wait for the child to finish, blocking shell
+                            } else if (i == command_counter - 1) {
+                                printf("[%d]\n", pid); // print bg process id, and not wait for child to finish (will "wait" for SIGCHLD, but not blocking the shell)
+                            }
                         }
                     }
                 }

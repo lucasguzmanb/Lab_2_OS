@@ -221,7 +221,7 @@ int main(int argc, char *argv[]) {
                                 close(fid);
                             }
                             if (strcmp(filev[1], "0") != 0) { // redirection of output
-                                fid = open(filev[1], O_CREAT | O_WRONLY, 0666);
+                                fid = open(filev[1], O_CREAT | O_WRONLY | O_TRUNC, 0666);
                                 if (fid < 0) {
                                     perror("Error in open");
                                     exit(-1);
@@ -230,7 +230,7 @@ int main(int argc, char *argv[]) {
                                 close(fid);
                             }
                             if (strcmp(filev[2], "0") != 0) { // redirection of error
-                                fid = open(filev[2], O_CREAT | O_WRONLY, 0666);
+                                fid = open(filev[2], O_CREAT | O_WRONLY | O_TRUNC, 0666);
                                 if (fid < 0) {
                                     perror("Error in open");
                                     exit(-1);
@@ -278,7 +278,7 @@ int main(int argc, char *argv[]) {
 
                             int fid;
                             if (strcmp(filev[2], "0") != 0) { // redirection of error
-                                fid = open(filev[2], O_CREAT | O_WRONLY, 0666);
+                                fid = open(filev[2], O_CREAT | O_WRONLY | O_TRUNC, 0666);
                                 if (fid < 0) {
                                     perror("Error in open");
                                     exit(-1);
@@ -309,7 +309,7 @@ int main(int argc, char *argv[]) {
                                 close(fd[i - 1][READ_END]);
 
                                 if (strcmp(filev[1], "0") != 0) { // redirection of output
-                                    fid = open(filev[1], O_CREAT | O_WRONLY, 0666);
+                                    fid = open(filev[1], O_CREAT | O_WRONLY | O_TRUNC, 0666);
                                     if (fid < 0) {
                                         perror("Error in open");
                                         exit(-1);
@@ -331,7 +331,7 @@ int main(int argc, char *argv[]) {
                         }
 
                         else { // parent
-                            // close all pipes from the parent
+                            // close pipes from the parent
                             if (i != 0) {
                                 close(fd[i - 1][READ_END]);
                             }
@@ -343,7 +343,7 @@ int main(int argc, char *argv[]) {
                             if (!in_background) {
                                 wait(&status); // if command is in foreground, wait for the child to finish, blocking shell
                             } else if (i == command_counter - 1) {
-                                printf("[%d]\n", pid); // print bg process id, and not wait for child to finish (will "wait" for SIGCHLD, but not blocking the shell)
+                                printf("[%d]\n", pid); // print bg process id only of the last command, and not wait for child to finish (will "wait" for SIGCHLD, but not blocking the shell)
                             }
                         }
                     }

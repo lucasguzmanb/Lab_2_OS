@@ -320,7 +320,9 @@ int main(int argc, char *argv[]) {
 
                             } else {                                     // "middle" command
                                 dup2(fd[i - 1][READ_END], STDIN_FILENO); // read from previous pipe
+                                close(fd[i - 1][READ_END]);
                                 dup2(fd[i][WRITE_END], STDOUT_FILENO);   // write on next pipe
+                                close(fd[i][WRITE_END]);
                             }
 
                             getCompleteCommand(argvv, i);        // get 1st command
@@ -343,7 +345,8 @@ int main(int argc, char *argv[]) {
                             if (!in_background) {
                                 wait(&status); // if command is in foreground, wait for the child to finish, blocking shell
                             } else if (i == command_counter - 1) {
-                                printf("[%d]\n", pid); // print bg process id only of the last command, and not wait for child to finish (will "wait" for SIGCHLD, but not blocking the shell)
+                                printf("[%d]\n", pid); // print bg process id only of the last command,
+                                //and not wait for child to finish (will "wait" for SIGCHLD, but not blocking the shell)
                             }
                         }
                     }

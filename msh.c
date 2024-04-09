@@ -345,8 +345,7 @@ int main(int argc, char *argv[]) {
                             if (!in_background) {
                                 wait(&status); // if command is in foreground, wait for the child to finish, blocking shell
                             } else if (i == command_counter - 1) {
-                                printf("[%d]\n", pid); // print bg process id only of the last command,
-                                //and not wait for child to finish (will "wait" for SIGCHLD, but not blocking the shell)
+                                printf("[%d]\n", pid); // print bg process id only of the last command, and not wait for child to finish (will "wait" for SIGCHLD, but not blocking the shell)
                             }
                         }
                     }

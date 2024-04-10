@@ -193,6 +193,8 @@ int main(int argc, char *argv[]) {
 
                 if (command_counter == 1) { // simple command
 
+                    /* mycalc */
+
                     if (strcmp(argvv[0][0], "mycalc") == 0) {
                         int num_args = 0;
                         while (argvv[0][num_args] != NULL) { // count the number of arguments passed to mycalc
@@ -228,12 +230,17 @@ int main(int argc, char *argv[]) {
                                 printf("[ERROR] The structure of the command is mycalc < operand_1 > <add / mul / div > < operand_2 >\n");
                             }
                         }
+                    }
 
-                    } else if (strcmp(argvv[0][0], "myhistory") == 0) {
+                    /* myhistory */
 
+                    else if (strcmp(argvv[0][0], "myhistory") == 0) {
                         printf("this is myhistory\n");
+                    }
 
-                    } else {
+                    /* any other command */
+
+                    else {
 
                         pid = fork();
 

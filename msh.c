@@ -40,35 +40,7 @@ void sigchldhandler(int signal) {
 /* myhistory */
 
 /* mycalc */
-int Acc=0; // we initialize Acc, it only loses its value when we recompile
-
-int mycalc(int argc, char *argvv[]) {
-    if (argc != 4) { // the number of arguments has to be exactly 4: mycalc, operand1, operation, operand2
-        printf("[ERROR] The structure of the command is mycalc < operand_1 > <add / mul / div > < operand_2 >\n");
-        exit(-1);
-    }
-    int operand_1 = atof(argvv[1]); // we get the values of the operands that are stored in argvv
-    int operand_2 = atof(argvv[3]);
-    int result;
-        if (strcmp(argvv[2], "add") == 0) { // if the operator is add we add the operators and update Acc
-            result = operand_1 + operand_2;
-            Acc += result;
-            printf("[OK] %s + %s = %d; Acc %d", operand_1, operand_2, result, Acc);
-        } else if (strcmp(argvv[2], "mul") == 0) { // if the operator is mul we multiply the operators
-            result = operand_1 * operand_2;
-            printf("[OK] %s * %s = %d\n", operand_1,operand_2, result);
-        } else if (strcmp(argvv[2], "div") == 0) { // if the operator is div we get the quotient between the operators and the remainder
-            if (operand_2 != 0) {
-                int quotient = operand_1 / operand_2;
-                int remainder = operand_1 % operand_2;
-                printf("[OK] %s / %s = %d; Remainder %d\n", operand_1, operand_2, quotient, remainder);
-            } else {
-                printf("[ERROR] Division by zero is not allowed\n"); // we cannot divide by 0
-            }
-        } else { // if it did not enter in any of these cases, the structure is wrong
-            printf("[ERROR] The structure of the command is mycalc < operand_1 > <add / mul / div > < operand_2 >\n");
-        }
-}
+int Acc = 0; // we initialize Acc as a global variable so it only loses its value when we stop the shell
 
 struct command {
     // Store the number of commands in argvv
@@ -221,24 +193,57 @@ int main(int argc, char *argv[]) {
 
                 if (command_counter == 1) { // simple command
 
-                    pid = fork();
+                    if (strcmp(argvv[0][0], "mycalc") == 0) {
+                        int num_args = 0;
+                        while (argvv[0][num_args] != NULL) { // count the number of arguments passed to mycalc
+                            num_args++;
+                        }
 
-                    if (pid == -1) {
-                        perror("Error in fork"); // if fork doesn't work correctly
-                        exit(EXIT_FAILURE);
-                    }
+                        if (num_args != 4 || in_background || strcmp(filev[0], "0") != 0 || strcmp(filev[1], "0") != 0 || strcmp(filev[2], "0") != 0) { // not correct format of the command
 
-                    else if (pid == 0) { // child process
-
-                        if (strcmp(argvv[0][0], "mycalc") == 0) {
-
-                            mycalc();
-
-                        } else if (strcmp(argvv[0][0], "myhistory") == 0) {
-
-                            printf("this is myhistory\n");
+                            printf("[ERROR] The structure of the command is mycalc < operand_1 > <add / mul / div > < operand_2 >\n");
 
                         } else {
+
+                            int operand_1 = atoi(argvv[0][1]); // we get the values of the operands that are stored in argvv
+                            char *operator= argvv[0][2];
+                            int operand_2 = atoi(argvv[0][3]);
+                            int result;
+                            if (strcmp(operator, "add") == 0) { // if the operator is add we add the operators and update Acc
+                                result = operand_1 + operand_2;
+                                Acc += result;
+                                printf("[OK] %d + %d = %d; Acc %d\n", operand_1, operand_2, result, Acc);
+                            } else if (strcmp(operator, "mul") == 0) { // if the operator is mul we multiply the operators
+                                result = operand_1 * operand_2;
+                                printf("[OK] %d * %d = %d\n", operand_1, operand_2, result);
+                            } else if (strcmp(operator, "div") == 0) { // if the operator is div we get the integer quotient between the operators and the remainder
+                                if (operand_2 != 0) {
+                                    int quotient = operand_1 / operand_2;
+                                    int remainder = operand_1 % operand_2;
+                                    printf("[OK] %d / %d = %d; Remainder %d\n", operand_1, operand_2, quotient, remainder);
+                                } else {
+                                    printf("[ERROR] Division by zero is not allowed\n"); // we cannot divide by 0
+                                }
+                            } else { // if it did not enter in any of these cases, the structure is wrong
+                                printf("[ERROR] The structure of the command is mycalc < operand_1 > <add / mul / div > < operand_2 >\n");
+                            }
+                        }
+
+                    } else if (strcmp(argvv[0][0], "myhistory") == 0) {
+
+                        printf("this is myhistory\n");
+
+                    } else {
+
+                        pid = fork();
+
+                        if (pid == -1) {
+                            perror("Error in fork"); // if fork doesn't work correctly
+                            exit(EXIT_FAILURE);
+                        }
+
+                        else if (pid == 0) { // child process
+
                             int fid;
                             if (strcmp(filev[0], "0") != 0) { // redirection of input
                                 fid = open(filev[0], O_RDONLY);
@@ -272,13 +277,13 @@ int main(int argc, char *argv[]) {
                             perror("Error in execvp");           // if execvp doesnt work correctly
                             exit(EXIT_FAILURE);
                         }
-                    }
 
-                    else { // Parent process
-                        if (!in_background) {
-                            waitpid(pid, &status, 0); // if command is in foreground, wait for the child to finish, blocking shell
-                        } else {
-                            printf("[%d]\n", pid); // print bg process id, and not wait for child to finish (will "wait" for SIGCHLD, but not blocking the shell)
+                        else { // Parent process
+                            if (!in_background) {
+                                waitpid(pid, &status, 0); // if command is in foreground, wait for the child to finish, blocking shell
+                            } else {
+                                printf("[%d]\n", pid); // print bg process id, and not wait for child to finish (will "wait" for SIGCHLD, but not blocking the shell)
+                            }
                         }
                     }
 
@@ -350,7 +355,7 @@ int main(int argc, char *argv[]) {
                             } else {                                     // "middle" command
                                 dup2(fd[i - 1][READ_END], STDIN_FILENO); // read from previous pipe
                                 close(fd[i - 1][READ_END]);
-                                dup2(fd[i][WRITE_END], STDOUT_FILENO);   // write on next pipe
+                                dup2(fd[i][WRITE_END], STDOUT_FILENO); // write on next pipe
                                 close(fd[i][WRITE_END]);
                             }
 

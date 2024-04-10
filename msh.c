@@ -40,6 +40,35 @@ void sigchldhandler(int signal) {
 /* myhistory */
 
 /* mycalc */
+int Acc=0; // we initialize Acc, it only loses its value when we recompile
+
+int mycalc(int argc, char *argvv[]) {
+    if (argc != 4) { // the number of arguments has to be exactly 4: mycalc, operand1, operation, operand2
+        printf("[ERROR] The structure of the command is mycalc < operand_1 > <add / mul / div > < operand_2 >\n");
+        exit(-1);
+    }
+    int operand_1 = atof(argvv[1]); // we get the values of the operands that are stored in argvv
+    int operand_2 = atof(argvv[3]);
+    int result;
+        if (strcmp(argvv[2], "add") == 0) { // if the operator is add we add the operators and update Acc
+            result = operand_1 + operand_2;
+            Acc += result;
+            printf("[OK] %s + %s = %d; Acc %d", operand_1, operand_2, result, Acc);
+        } else if (strcmp(argvv[2], "mul") == 0) { // if the operator is mul we multiply the operators
+            result = operand_1 * operand_2;
+            printf("[OK] %s * %s = %d\n", operand_1,operand_2, result);
+        } else if (strcmp(argvv[2], "div") == 0) { // if the operator is div we get the quotient between the operators and the remainder
+            if (operand_2 != 0) {
+                int quotient = operand_1 / operand_2;
+                int remainder = operand_1 % operand_2;
+                printf("[OK] %s / %s = %d; Remainder %d\n", operand_1, operand_2, quotient, remainder);
+            } else {
+                printf("[ERROR] Division by zero is not allowed\n"); // we cannot divide by 0
+            }
+        } else { // if it did not enter in any of these cases, the structure is wrong
+            printf("[ERROR] The structure of the command is mycalc < operand_1 > <add / mul / div > < operand_2 >\n");
+        }
+}
 
 struct command {
     // Store the number of commands in argvv
@@ -203,7 +232,7 @@ int main(int argc, char *argv[]) {
 
                         if (strcmp(argvv[0][0], "mycalc") == 0) {
 
-                            printf("this is mycalc\n");
+                            mycalc();
 
                         } else if (strcmp(argvv[0][0], "myhistory") == 0) {
 

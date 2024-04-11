@@ -40,7 +40,6 @@ void sigchldhandler(int signal) {
 /* myhistory */
 
 /* mycalc */
-int Acc = 0; // we initialize Acc as a global variable so it only loses its value when we stop the shell
 
 struct command {
     // Store the number of commands in argvv
@@ -158,6 +157,12 @@ int main(int argc, char *argv[]) {
     history = (struct command *)malloc(history_size * sizeof(struct command));
     int run_history = 0;
 
+    // set environment variable to 0
+    if (setenv("Acc", "0", 1) != 0) {
+        perror("setenv");
+        return 1;
+    }
+
     while (1) {
         int status = 0;
         int command_counter = 0;
@@ -196,6 +201,7 @@ int main(int argc, char *argv[]) {
                     /* mycalc */
 
                     if (strcmp(argvv[0][0], "mycalc") == 0) {
+
                         int num_args = 0;
                         while (argvv[0][num_args] != NULL) { // count the number of arguments passed to mycalc
                             num_args++;
@@ -203,7 +209,7 @@ int main(int argc, char *argv[]) {
 
                         if (num_args != 4 || in_background || strcmp(filev[0], "0") != 0 || strcmp(filev[1], "0") != 0 || strcmp(filev[2], "0") != 0) { // not correct format of the command
 
-                            printf("[ERROR] The structure of the command is mycalc < operand_1 > <add / mul / div > < operand_2 >\n");
+                            fprintf(stdout, "[ERROR] The structure of the command is mycalc <operand_1> <add/mul/div> <operand_2>\n");
 
                         } else {
 
@@ -212,22 +218,40 @@ int main(int argc, char *argv[]) {
                             int operand_2 = atoi(argvv[0][3]);
                             int result;
                             if (strcmp(operator, "add") == 0) { // if the operator is add we add the operators and update Acc
+
                                 result = operand_1 + operand_2;
-                                Acc += result;
-                                printf("[OK] %d + %d = %d; Acc %d\n", operand_1, operand_2, result, Acc);
+
+                                char *acc_value_str = getenv("Acc");                                        // obtain value of environment Acc
+                                int acc_value = (acc_value_str != NULL) ? atoi(acc_value_str) + result : 0; // if not NULL (correct get of env value), add result to its value, else assign 0
+
+                                char acc_value_buf[20];
+                                snprintf(acc_value_buf, sizeof(acc_value_buf), "%d", acc_value); // transform acc_value to str
+
+                                if (setenv("Acc", acc_value_buf, 1) != 0) { // update value of Acc variable to the environment Acc variable
+                                    perror("setenv");
+                                    return 1;
+                                }
+
+                                fprintf(stderr, "[OK] %d + %d = %d; Acc %d\n", operand_1, operand_2, result, acc_value);
+
                             } else if (strcmp(operator, "mul") == 0) { // if the operator is mul we multiply the operators
+
                                 result = operand_1 * operand_2;
-                                printf("[OK] %d * %d = %d\n", operand_1, operand_2, result);
+                                fprintf(stderr, "[OK] %d * %d = %d\n", operand_1, operand_2, result);
+
                             } else if (strcmp(operator, "div") == 0) { // if the operator is div we get the integer quotient between the operators and the remainder
+
                                 if (operand_2 != 0) {
+
                                     int quotient = operand_1 / operand_2;
                                     int remainder = operand_1 % operand_2;
-                                    printf("[OK] %d / %d = %d; Remainder %d\n", operand_1, operand_2, quotient, remainder);
+                                    fprintf(stderr, "[OK] %d / %d = %d; Remainder %d\n", operand_1, operand_2, quotient, remainder);
+
                                 } else {
-                                    printf("[ERROR] Division by zero is not allowed\n"); // we cannot divide by 0
+                                    fprintf(stdout, "[ERROR] Division by zero is not allowed\n"); // we cannot divide by 0
                                 }
                             } else { // if it did not enter in any of these cases, the structure is wrong
-                                printf("[ERROR] The structure of the command is mycalc < operand_1 > <add / mul / div > < operand_2 >\n");
+                                fprintf(stdout, "[ERROR] The structure of the command is mycalc <operand_1> <add/mul/div> <operand_2>\n");
                             }
                         }
                     }

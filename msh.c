@@ -56,8 +56,8 @@ struct command {
 
 int history_size = 20;
 struct command *history;
-int head = 0;
-int tail = 0;
+int head = -1;
+int tail = -1;
 int n_elem = 0;
 
 void free_command(struct command *cmd) {
@@ -126,6 +126,31 @@ void getCompleteCommand(char ***argvv, int num_command) {
         argv_execvp[i] = argvv[num_command][i];
 }
 
+char *commandToString(char ***argvv, int num_commands) {
+    char *result = (char *)malloc(100 * sizeof(char));
+    if (result == NULL) {
+        perror("Error en la asignación de memoria");
+        exit(EXIT_FAILURE);
+    }
+    result[0] = '\0'; // Initialise result string as empty
+
+    for (int i = 0; i < num_commands; i++) {
+        for (int j = 0; argvv[i][j] != NULL; j++) {
+            // Concat each argument to result
+            sprintf(result + strlen(result), "%s ", argvv[i][j]);
+        }
+        if (i != num_commands-1){ // if not the last command, put a pipe operator between commands
+            sprintf(result + strlen(result), "| ");
+
+        }
+    }
+    // remove last empty sapce
+    if (strlen(result) > 0) {
+        result[strlen(result) - 1] = '\0';
+    }
+    return result;
+}
+
 /**
  * Main sheell  Loop
  */
@@ -192,6 +217,20 @@ int main(int argc, char *argv[]) {
             if (command_counter > MAX_COMMANDS) {
                 printf("Error: Maximum number of commands is %d \n", MAX_COMMANDS);
             } else {
+                // store command in history
+                if (strcmp(argvv[0][0], "myhistory") != 0) { // the command myhistory is not stored
+                    if (head == tail && head == -1) {        // if history is empty
+                        head = 0;
+                        tail = 0;
+                        store_command(argvv, filev, in_background, &history[tail]);
+                    } else { // if not empty
+                        tail = (tail + 1) % history_size;
+                        if (head == tail) { // if we reach the "end" of the queue
+                            head = (head + 1) % history_size;
+                        }
+                        store_command(argvv, filev, in_background, &history[tail]); // store in the next spot or overwrite the oldest one
+                    }
+                }
 
                 signal(SIGCHLD, sigchldhandler); // signal handler when recieving SIGCHLD
                 pid_t pid;
@@ -259,7 +298,30 @@ int main(int argc, char *argv[]) {
                     /* myhistory */
 
                     else if (strcmp(argvv[0][0], "myhistory") == 0) {
-                        printf("this is myhistory\n");
+                        int num_args = 0;
+                        while (argvv[0][num_args] != NULL) { // count the number of arguments passed to myhistory
+                            num_args++;
+                        }
+                        // TODO: da segmentation fault despues de poner un comando con mas de 3 argumentos, en el comando siguiente
+                        if (num_args == 1) { // only myhistory, print all saved history
+                            int index = head;
+                            int counter = 0;
+                            do {
+                                char *command_str = commandToString(history[index].argvv, history[index].num_commands); 
+                                fprintf(stderr, "%d %s\n", counter, command_str);
+                                index = (index + 1) % history_size;
+                                counter++;
+                            } while (index != (tail + 1) % history_size);
+
+                        } else if (num_args == 2 && atoi(argvv[0][1]) < 20 && atoi(argvv[0][1]) >= 0) { // correct format of the command
+                            fprintf(stderr, "Running command %d\n", argvv[0][1]);
+                            // TODO
+
+                        } else if (in_background || strcmp(filev[0], "0") != 0 || strcmp(filev[1], "0") != 0 || strcmp(filev[2], "0") != 0) { // file redirection or background execution
+                            fprintf(stdout, "ERROR: Command not found \n");
+                        } else { // invalid arguments or incorrect number of arguments
+                            fprintf(stdout, "ERROR: Command not found \n");
+                        }
                     }
 
                     /* any other command */

@@ -314,8 +314,8 @@ int main(int argc, char *argv[]) {
                             num_args++;
                         }
                         if (num_args == 1) { // only myhistory, print all saved history
-                            int index = head;
                             int counter = 0;
+                            int index = head;
                             do {
                                 char *command_str = commandToString(history[index].argvv, history[index].num_commands, history[index].in_background, history[index].filev);
                                 fprintf(stderr, "%d %s\n", counter, command_str);
@@ -323,20 +323,24 @@ int main(int argc, char *argv[]) {
                                 counter++;
                             } while (index != (tail + 1) % history_size);
 
-                        } else if (num_args == 2 && atoi(argvv[0][1]) < 20 && atoi(argvv[0][1]) >= 0) { // correct format of the command
-                            fprintf(stderr, "Running command %s\n", argvv[0][1]);
-                            int index_to_exec = head + atoi(argvv[0][1]);
+                        } else if (num_args == 2 && atoi(argvv[0][1]) < history_size && atoi(argvv[0][1]) >= 0) { // correct format of the command
                             // execute the command
-                            pid = fork();
+                            if (tail >= head && atoi(argvv[0][1]) > tail) { // if we try to run a command in an empty position
+                                fprintf(stdout, "ERROR: Command not found \n");
+                            } else {
+                                fprintf(stderr, "Running command %s\n", argvv[0][1]);
+                                pid = fork();
+                                    int index_to_exec = (head + atoi(argvv[0][1])) % history_size;
 
-                            if (pid == -1) {
-                                perror("Error in fork");
-                                exit(EXIT_FAILURE);
-                            } else if (pid == 0) {
-                                getCompleteCommand(history[index_to_exec].argvv, 0);
-                                execvp(argv_execvp[0], argv_execvp);
-                                perror("Error in execvp");
-                                exit(EXIT_FAILURE);
+                                if (pid == -1) {
+                                    perror("Error in fork");
+                                    exit(EXIT_FAILURE);
+                                } else if (pid == 0) {
+                                    getCompleteCommand(history[index_to_exec].argvv, 0);
+                                    execvp(argv_execvp[0], argv_execvp);
+                                    perror("Error in execvp");
+                                    exit(EXIT_FAILURE);
+                                }
                             }
                         } else if (in_background || strcmp(filev[0], "0") != 0 || strcmp(filev[1], "0") != 0 || strcmp(filev[2], "0") != 0) { // file redirection or background execution
                             fprintf(stdout, "ERROR: Command not found \n");

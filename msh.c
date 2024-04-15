@@ -126,10 +126,10 @@ void getCompleteCommand(char ***argvv, int num_command) {
         argv_execvp[i] = argvv[num_command][i];
 }
 
-char *commandToString(char ***argvv, int num_commands) {
+char *commandToString(char ***argvv, int num_commands, int in_background, char filev[3][64]) {
     char *result = (char *)malloc(100 * sizeof(char));
     if (result == NULL) {
-        perror("Error en la asignación de memoria");
+        perror("Error in memory assignment");
         exit(EXIT_FAILURE);
     }
     result[0] = '\0'; // Initialise result string as empty
@@ -139,15 +139,26 @@ char *commandToString(char ***argvv, int num_commands) {
             // Concat each argument to result
             sprintf(result + strlen(result), "%s ", argvv[i][j]);
         }
-        if (i != num_commands-1){ // if not the last command, put a pipe operator between commands
+        if (i != num_commands - 1) { // if not the last command, put a pipe operator between commands
             sprintf(result + strlen(result), "| ");
-
         }
     }
     // remove last empty sapce
-    if (strlen(result) > 0) {
+    if (strlen(result) > 0)
         result[strlen(result) - 1] = '\0';
-    }
+
+    if (in_background)
+        sprintf(result + strlen(result), " &");
+
+    if (strcmp(filev[0], "0") != 0) // redirection of input
+        sprintf(result + strlen(result), " < %s", filev[0]);
+
+    if (strcmp(filev[1], "0") != 0) // redirection of output
+        sprintf(result + strlen(result), " > %s", filev[1]);
+
+    if (strcmp(filev[2], "0") != 0) // redirection of error
+        sprintf(result + strlen(result), " !> %s", filev[2]);
+
     return result;
 }
 
@@ -302,21 +313,31 @@ int main(int argc, char *argv[]) {
                         while (argvv[0][num_args] != NULL) { // count the number of arguments passed to myhistory
                             num_args++;
                         }
-                        // TODO: da segmentation fault despues de poner un comando con mas de 3 argumentos, en el comando siguiente
                         if (num_args == 1) { // only myhistory, print all saved history
                             int index = head;
                             int counter = 0;
                             do {
-                                char *command_str = commandToString(history[index].argvv, history[index].num_commands); 
+                                char *command_str = commandToString(history[index].argvv, history[index].num_commands, history[index].in_background, history[index].filev);
                                 fprintf(stderr, "%d %s\n", counter, command_str);
                                 index = (index + 1) % history_size;
                                 counter++;
                             } while (index != (tail + 1) % history_size);
 
                         } else if (num_args == 2 && atoi(argvv[0][1]) < 20 && atoi(argvv[0][1]) >= 0) { // correct format of the command
-                            fprintf(stderr, "Running command %d\n", argvv[0][1]);
-                            // TODO
+                            fprintf(stderr, "Running command %s\n", argvv[0][1]);
+                            int index_to_exec = head + atoi(argvv[0][1]);
+                            // execute the command
+                            pid = fork();
 
+                            if (pid == -1) {
+                                perror("Error in fork");
+                                exit(EXIT_FAILURE);
+                            } else if (pid == 0) {
+                                getCompleteCommand(history[index_to_exec].argvv, 0);
+                                execvp(argv_execvp[0], argv_execvp);
+                                perror("Error in execvp");
+                                exit(EXIT_FAILURE);
+                            }
                         } else if (in_background || strcmp(filev[0], "0") != 0 || strcmp(filev[1], "0") != 0 || strcmp(filev[2], "0") != 0) { // file redirection or background execution
                             fprintf(stdout, "ERROR: Command not found \n");
                         } else { // invalid arguments or incorrect number of arguments
